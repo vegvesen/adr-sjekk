@@ -1,0 +1,83 @@
+{
+  "name": "adr-sjekk",
+  "displayName": "ADR-sjekk",
+  "description": "GitHub Copilot Skill som sjekker at et repo følger ADR-er (Architecture Decision Records) fra Confluence",
+  "version": "0.1.0",
+  "publisher": "vegvesen",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Chat"
+  ],
+  "extensionDependencies": [
+    "github.copilot-chat"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "adr-sjekk.checker",
+        "fullName": "ADR-sjekk",
+        "name": "adr-sjekk",
+        "description": "Sjekker at repoet følger gjeldende ADR-er (Architecture Decision Records) fra Confluence",
+        "isSticky": false,
+        "commands": [
+          {
+            "name": "sjekk",
+            "description": "Sjekk repoet mot alle ADR-er for aktuelt område"
+          },
+          {
+            "name": "list",
+            "description": "List alle ADR-er hentet fra Confluence"
+          },
+          {
+            "name": "detaljer",
+            "description": "Vis detaljer for en spesifikk ADR"
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "ADR-sjekk",
+      "properties": {
+        "adr-sjekk.confluenceBaseUrl": {
+          "type": "string",
+          "default": "https://www.vegvesen.no/wiki",
+          "description": "Base-URL for Confluence-instansen"
+        },
+        "adr-sjekk.confluencePageId": {
+          "type": "string",
+          "default": "12345678",
+          "description": "Page ID for ADR-oversiktssiden i Confluence"
+        },
+        "adr-sjekk.confluenceSpaceKey": {
+          "type": "string",
+          "default": "XX",
+          "description": "Space key i Confluence der ADR-ene ligger"
+        },
+        "adr-sjekk.confluencePat": {
+          "type": "string",
+          "default": "",
+          "description": "Personal Access Token (PAT) for autentisering mot Confluence API",
+          "markdownDescription": "Personal Access Token (PAT) for autentisering mot Confluence API. **Oppbevares sikkert.**"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.93.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.3.0"
+  }
+}
