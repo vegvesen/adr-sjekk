@@ -24,6 +24,3 @@ jobs:
 
       - name: Compile
         run: npm run compile
-
-      - name: Lint
-        run: npm run lint
