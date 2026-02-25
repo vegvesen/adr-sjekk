@@ -79,5 +79,8 @@
     "@types/vscode": "^1.109.0",
     "@vscode/vsce": "^3.7.1",
     "typescript": "^5.9.3"
-  }
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
+}
 }

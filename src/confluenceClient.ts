@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as cheerio from 'cheerio';
 
 /**
  * Representerer en ADR (Architecture Decision Record) hentet fra Confluence.
@@ -277,18 +278,10 @@ export class ConfluenceClient {
      * Fjerner HTML-tagger og returnerer ren tekst.
      */
     private stripHtml(html: string): string {
-        return html
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\s+/g, ' ')
-            .trim();
+        // Bruk en HTML-parser for å ekstrahere ren tekst på en trygg måte
+        const $ = cheerio.load(html);
+        const text = $.root().text();
+        return text.replace(/\s+/g, ' ').trim();
     }
 
     /**
