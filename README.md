@@ -9,6 +9,9 @@ En VS Code Chat Participant-extension (GitHub Copilot Skill) som sjekker at et r
 | `@adr-sjekk /sjekk` | Sjekk repoet mot alle ADR-er og få en compliance-rapport |
 | `@adr-sjekk /list` | List alle ADR-er hentet fra Confluence |
 | `@adr-sjekk /detaljer <nr/tittel>` | Vis detaljer for en spesifikk ADR |
+| `@adr-sjekk /settPAT` | Lagre Confluence PAT sikkert i SecretStorage |
+| `@adr-sjekk /fjernPAT` | Slett lagret Confluence PAT fra SecretStorage |
+| `@adr-sjekk /authstatus` | Diagnostikk: sjekk konfigurasjon og live-test Confluence-tilkobling |
 
 Du kan også skrive fritt til `@adr-sjekk`, f.eks.:
 - `@adr-sjekk Sjekk om vi bruker riktig logging-rammeverk`
@@ -50,21 +53,55 @@ Legg til følgende i VS Code-innstillingene (`settings.json`):
 {
   "adr-sjekk.confluenceBaseUrl": "https://www.vegvesen.no/wiki",
   "adr-sjekk.confluencePageId": "12345678",
-  "adr-sjekk.confluenceSpaceKey": "XX",
-  "adr-sjekk.confluencePat": "din-personal-access-token"
+  "adr-sjekk.confluenceSpaceKey": "XX"
 }
 ```
+
+> **Merk:** `confluenceBaseUrl` må starte med `https://`. HTTP-URLer avvises.
+
+### 3. Sett Confluence PAT (Personal Access Token)
+
+PAT lagres **aldri** i `settings.json` — den oppbevares kryptert i VS Codes [SecretStorage](https://code.visualstudio.com/api/references/vscode-api#SecretStorage).
+
+**Alternativ A — via chat:**
+
+```
+@adr-sjekk /settPAT
+```
+
+**Alternativ B — via kommandopaletten** (`Ctrl+Shift+P`):
+
+```
+ADR-sjekk: Sett Confluence PAT (sikker lagring)
+```
+
+Begge åpner et passord-maskert inputfelt. Lim inn tokenet og trykk Enter — det lagres kryptert og brukes automatisk ved alle Confluence-kall.
+
+#### Fjerne lagret PAT
+
+```
+@adr-sjekk /fjernPAT
+```
+
+eller via kommandopaletten: **ADR-sjekk: Fjern lagret Confluence PAT**
+
+#### Verifisere tilkoblingen
+
+```
+@adr-sjekk /authstatus
+```
+
+Viser konfigurasjonsstatus (HTTPS ✅/❌, PAT funnet ✅/❌, fingerprint) og kjører en live auth-test mot Confluence.
 
 #### Hvordan lage PAT i Confluence
 
 1. Gå til din Confluence-profil → **Personal Access Tokens**
 2. Klikk **Create token**
 3. Gi tokenet et navn og velg riktig utløpsdato
-4. Kopier tokenet og legg det inn i innstillingene over
+4. Kopier tokenet
+5. Lim det inn via `@adr-sjekk /settPAT` eller kommandopaletten
 
-> ⚠️ **Sikkerhet:** PAT-en gir tilgang til Confluence. Ikke sjekk den inn i kildekode. Vurder å bruke VS Code Secret Storage i produksjon.
-
-### 3. Krav
+### 4. Krav
 
 - **VS Code** 1.93 eller nyere
 - **GitHub Copilot Chat** extension installert og aktiv
@@ -74,10 +111,11 @@ Legg til følgende i VS Code-innstillingene (`settings.json`):
 
 | Innstilling | Standard | Beskrivelse |
 |---|---|---|
-| `adr-sjekk.confluenceBaseUrl` | `https://www.vegvesen.no/wiki` | Base-URL for Confluence |
+| `adr-sjekk.confluenceBaseUrl` | `https://www.vegvesen.no/wiki` | Base-URL for Confluence (må bruke HTTPS) |
 | `adr-sjekk.confluencePageId` | `12345678` | Side-ID for ADR-oversikten |
 | `adr-sjekk.confluenceSpaceKey` | `XX` | Confluence Space Key |
-| `adr-sjekk.confluencePat` | *(tom)* | Personal Access Token |
+
+> **PAT lagres ikke i innstillingene.** Bruk `@adr-sjekk /settPAT` eller kommandopaletten for sikker lagring i SecretStorage.
 
 ## Arkitektur
 

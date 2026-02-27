@@ -1,15 +1,41 @@
 import * as vscode from 'vscode';
+import { createHash } from 'crypto';
 import { ConfluenceClient, ADR } from './confluenceClient';
 import { RepoAnalyzer } from './repoAnalyzer';
 
 let cachedADRs: ADR[] | null = null;
+let extensionContext: vscode.ExtensionContext;
 
 export function activate(context: vscode.ExtensionContext) {
+    extensionContext = context;
 
     const participant = vscode.chat.createChatParticipant('adr-sjekk.checker', handler);
     participant.iconPath = new vscode.ThemeIcon('checklist');
-
     context.subscriptions.push(participant);
+
+    // Kommando for sikker PAT-håndtering via SecretStorage
+    context.subscriptions.push(
+        vscode.commands.registerCommand('adr-sjekk.setPat', async () => {
+            const input = await vscode.window.showInputBox({
+                prompt: 'Skriv inn Confluence PAT (Personal Access Token)',
+                password: true,
+                ignoreFocusOut: true,
+                placeHolder: 'Lim inn token her…',
+            });
+            const pat = normalizePatToken(input || '');
+            if (pat) {
+                await context.secrets.store('adr-sjekk.pat', pat);
+                vscode.window.showInformationMessage('Confluence PAT lagret sikkert i SecretStorage.');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('adr-sjekk.clearPat', async () => {
+            await context.secrets.delete('adr-sjekk.pat');
+            vscode.window.showInformationMessage('Confluence PAT fjernet fra SecretStorage.');
+        })
+    );
 }
 
 async function handler(
@@ -25,6 +51,12 @@ async function handler(
         return await handleList(request, stream, token);
     } else if (command === 'detaljer') {
         return await handleDetails(request, stream, token);
+    } else if (command === 'settPAT') {
+        return await handleSettPAT(stream);
+    } else if (command === 'fjernPAT') {
+        return await handleFjernPAT(stream);
+    } else if (command === 'authstatus') {
+        return await handleAuthStatus(stream);
     } else {
         // Default: /sjekk eller ingen kommando
         return await handleCheck(request, stream, token);
@@ -41,11 +73,15 @@ async function handleCheck(
 ): Promise<vscode.ChatResult> {
 
     // 1. Valider konfigurasjon
-    const client = new ConfluenceClient();
+    const client = await createClient(stream);
+    if (!client) {
+        return { metadata: { command: 'sjekk' } };
+    }
+
     const validationError = client.validateConfig();
     if (validationError) {
         stream.markdown(`⚠️ **Konfigurasjonsfeil:** ${validationError}\n\n`);
-        stream.markdown('Konfigurer PAT med:\n```\n"adr-sjekk.confluencePat": "din-pat-her"\n```\n');
+        stream.markdown('Kjør `@adr-sjekk /settPAT` for å lagre token sikkert.\n');
         return { metadata: { command: 'sjekk' } };
     }
 
@@ -128,7 +164,11 @@ async function handleList(
     token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 
-    const client = new ConfluenceClient();
+    const client = await createClient(stream);
+    if (!client) {
+        return { metadata: { command: 'list' } };
+    }
+
     const validationError = client.validateConfig();
     if (validationError) {
         stream.markdown(`⚠️ **Konfigurasjonsfeil:** ${validationError}\n`);
@@ -175,7 +215,11 @@ async function handleDetails(
     token: vscode.CancellationToken
 ): Promise<vscode.ChatResult> {
 
-    const client = new ConfluenceClient();
+    const client = await createClient(stream);
+    if (!client) {
+        return { metadata: { command: 'detaljer' } };
+    }
+
     const validationError = client.validateConfig();
     if (validationError) {
         stream.markdown(`⚠️ **Konfigurasjonsfeil:** ${validationError}\n`);
@@ -318,9 +362,137 @@ function getStatusIcon(status: string): string {
  */
 function getConfluenceUrl(): string {
     const config = vscode.workspace.getConfiguration('adr-sjekk');
-    const baseUrl = config.get<string>('confluenceBaseUrl', 'https://www.vegvesen.no/wiki');
+    const baseUrl = (config.get<string>('confluenceBaseUrl', '') || '').replace(/\/+$/, '');
     const pageId = config.get<string>('confluencePageId', '256675250');
     return `${baseUrl}/pages/viewpage.action?pageId=${pageId}`;
+}
+
+// ─── SecretStorage-basert klientopprettelse ──────────────────────────────────
+
+/**
+ * Oppretter en ConfluenceClient med PAT fra SecretStorage.
+ * Returnerer null og skriver feilmelding til stream dersom PAT mangler.
+ */
+async function createClient(stream: vscode.ChatResponseStream): Promise<ConfluenceClient | null> {
+    const storedPatRaw = await extensionContext.secrets.get('adr-sjekk.pat');
+    const pat = normalizePatToken(storedPatRaw || '');
+    // Lagre normalisert versjon tilbake hvis den endret seg
+    if (pat && storedPatRaw && pat !== storedPatRaw) {
+        await extensionContext.secrets.store('adr-sjekk.pat', pat);
+    }
+
+    const client = new ConfluenceClient(pat);
+    const err = client.validateConfig();
+    if (err) {
+        stream.markdown(`⚠️ **Konfigurasjonsfeil:** ${err}\n\n`);
+        stream.markdown('Kjør kommandoen **`@adr-sjekk /settPAT`** eller **ADR-sjekk: Sett Confluence PAT** fra kommandopaletten for å konfigurere tilkobling.\n');
+        return null;
+    }
+    return client;
+}
+
+// ─── PAT-håndteringskommandoer ───────────────────────────────────────────────
+
+/**
+ * /settPAT - Lagre Confluence PAT sikkert i SecretStorage
+ */
+async function handleSettPAT(
+    stream: vscode.ChatResponseStream
+): Promise<vscode.ChatResult> {
+    const input = await vscode.window.showInputBox({
+        prompt: 'Skriv inn Confluence PAT (Personal Access Token)',
+        password: true,
+        ignoreFocusOut: true,
+        placeHolder: 'Lim inn token her…',
+    });
+    const pat = normalizePatToken(input || '');
+    if (pat) {
+        await extensionContext.secrets.store('adr-sjekk.pat', pat);
+        stream.markdown('✅ **PAT lagret** sikkert i SecretStorage.\n\n');
+        stream.markdown('Tokenet brukes automatisk ved neste Confluence-forespørsel.\n');
+    } else {
+        stream.markdown('ℹ️ Ingen token ble angitt. PAT er ikke endret.\n');
+    }
+    return { metadata: { command: 'settPAT' } };
+}
+
+/**
+ * /fjernPAT - Fjern Confluence PAT fra SecretStorage
+ */
+async function handleFjernPAT(
+    stream: vscode.ChatResponseStream
+): Promise<vscode.ChatResult> {
+    await extensionContext.secrets.delete('adr-sjekk.pat');
+    stream.markdown('🗑️ **PAT fjernet** fra SecretStorage.\n\n');
+    stream.markdown('Bruk `@adr-sjekk /settPAT` for å konfigurere ny token.\n');
+    return { metadata: { command: 'fjernPAT' } };
+}
+
+/**
+ * /authstatus - Diagnostikk for Confluence-autentisering
+ */
+async function handleAuthStatus(
+    stream: vscode.ChatResponseStream
+): Promise<vscode.ChatResult> {
+    const config = vscode.workspace.getConfiguration('adr-sjekk');
+    const baseUrl = (config.get<string>('confluenceBaseUrl', '') || '').replace(/\/+$/, '');
+    const pageId = config.get<string>('confluencePageId', '');
+
+    const secret = await extensionContext.secrets.get('adr-sjekk.pat');
+    const pat = normalizePatToken(secret || '');
+    const tokenFingerprint = pat ? fingerprintToken(pat) : '';
+
+    stream.markdown('## 🔎 Confluence auth-diagnostikk\n\n');
+    stream.markdown(`- Base URL: ${baseUrl ? `✅ \`${baseUrl}\`` : '❌ mangler'}\n`);
+    stream.markdown(`- HTTPS: ${baseUrl.startsWith('https://') ? '✅' : '❌ Kun HTTPS er tillatt'}\n`);
+    stream.markdown(`- Page ID: ${pageId ? `✅ \`${pageId}\`` : '❌ mangler'}\n`);
+    stream.markdown(`- PAT i SecretStorage: ${pat ? '✅ funnet' : '❌ mangler'}\n\n`);
+    if (pat) {
+        stream.markdown(`- PAT-lengde: ${pat.length}\n`);
+        stream.markdown(`- PAT-fingerprint (sha256/12): \`${tokenFingerprint}\`\n\n`);
+    }
+
+    if (!baseUrl || !baseUrl.startsWith('https://') || !pat) {
+        stream.markdown('⚠️ Konfigurasjon er ikke komplett. Korriger punktene over og kjør `@adr-sjekk /authstatus` på nytt.\n');
+        return { metadata: { command: 'authstatus' } };
+    }
+
+    // Live-test mot Confluence API
+    stream.progress('Kjører live autentiseringstest mot Confluence...');
+    try {
+        const client = new ConfluenceClient(pat);
+        // Prøv å hente hovedsiden for å verifisere tilkobling
+        await client.getMainPage();
+        stream.markdown('✅ **Auth OK** — tilkobling til Confluence fungerer.\n');
+    } catch (e: any) {
+        stream.markdown(`❌ **Auth feilet:** ${e.message}\n\n`);
+        stream.markdown('Mulige årsaker:\n');
+        stream.markdown('- Token er utløpt eller ugyldig\n');
+        stream.markdown('- Token mangler leserettigheter på Confluence-space/side\n');
+        stream.markdown('- Base URL peker til feil Confluence-instans\n');
+        stream.markdown('- Nettverksproblemer eller brannmur blokkerer tilgang\n');
+    }
+
+    return { metadata: { command: 'authstatus' } };
+}
+
+// ─── Hjelpefunksjoner for token-håndtering ──────────────────────────────────
+
+/**
+ * Normaliserer et PAT-token: trimmer whitespace, fjerner anførselstegn og «Bearer »-prefiks.
+ */
+function normalizePatToken(value: string): string {
+    let token = value.trim();
+    token = token.replace(/^['"]+|['"]+$/g, '');
+    token = token.replace(/^Bearer\s+/i, '');
+    return token.trim();
+}
+
+/**
+ * Genererer en kort, ikke-reversibel fingerprint av et token for diagnostikk.
+ */
+function fingerprintToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex').slice(0, 12);
 }
 
 export function deactivate() {

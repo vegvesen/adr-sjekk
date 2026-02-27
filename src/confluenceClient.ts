@@ -29,23 +29,26 @@ export class ConfluenceClient {
     private pageId: string;
     private spaceKey: string;
 
-    constructor() {
+    constructor(pat: string) {
         const config = vscode.workspace.getConfiguration('adr-sjekk');
-        this.baseUrl = config.get<string>('confluenceBaseUrl', 'https://www.vegvesen.no/wiki');
-        this.pat = config.get<string>('confluencePat', '');
+        this.baseUrl = (config.get<string>('confluenceBaseUrl', '') || '').replace(/\/+$/, '');
+        this.pat = pat;
         this.pageId = config.get<string>('confluencePageId', '12345678');
         this.spaceKey = config.get<string>('confluenceSpaceKey', 'XX');
     }
 
     /**
-     * Sjekker at PAT er konfigurert.
+     * Sjekker at PAT og base-URL er konfigurert, og at HTTPS brukes.
      */
     public validateConfig(): string | undefined {
-        if (!this.pat) {
-            return 'Confluence PAT er ikke konfigurert. Sett "adr-sjekk.confluencePat" i VS Code-innstillingene.';
-        }
         if (!this.baseUrl) {
-            return 'Confluence base-URL er ikke konfigurert.';
+            return 'Confluence base-URL er ikke konfigurert. Sett `adr-sjekk.confluenceBaseUrl` i VS Code-innstillingene.';
+        }
+        if (!this.baseUrl.startsWith('https://')) {
+            return 'Confluence base-URL må bruke HTTPS for sikker kommunikasjon. Endre `adr-sjekk.confluenceBaseUrl` til å starte med `https://`.';
+        }
+        if (!this.pat) {
+            return 'Confluence PAT er ikke konfigurert. Kjør `@adr-sjekk /settPAT` for å lagre token sikkert i SecretStorage.';
         }
         return undefined;
     }

@@ -2,11 +2,15 @@
   "name": "adr-sjekk",
   "displayName": "ADR-sjekk",
   "description": "GitHub Copilot Skill som sjekker at et repo følger ADR-er (Architecture Decision Records) fra Confluence",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "vegvesen",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vegvesen/adr-sjekk"
+  },
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.109.0"
   },
   "categories": [
     "Chat"
@@ -17,6 +21,16 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "adr-sjekk.setPat",
+        "title": "ADR-sjekk: Sett Confluence PAT (sikker lagring)"
+      },
+      {
+        "command": "adr-sjekk.clearPat",
+        "title": "ADR-sjekk: Fjern lagret Confluence PAT"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "adr-sjekk.checker",
@@ -36,6 +50,18 @@
           {
             "name": "detaljer",
             "description": "Vis detaljer for en spesifikk ADR"
+          },
+          {
+            "name": "settPAT",
+            "description": "Sett Confluence PAT sikkert (lagres i SecretStorage, aldri i settings.json)"
+          },
+          {
+            "name": "fjernPAT",
+            "description": "Fjern lagret Confluence PAT fra SecretStorage"
+          },
+          {
+            "name": "authstatus",
+            "description": "Diagnostikk for Confluence-autentisering (SecretStorage, HTTPS og live-test)"
           }
         ]
       }
@@ -57,30 +83,27 @@
           "type": "string",
           "default": "XX",
           "description": "Space key i Confluence der ADR-ene ligger"
-        },
-        "adr-sjekk.confluencePat": {
-          "type": "string",
-          "default": "",
-          "description": "Personal Access Token (PAT) for autentisering mot Confluence API",
-          "markdownDescription": "Personal Access Token (PAT) for autentisering mot Confluence API. **Oppbevares sikkert.**"
         }
       }
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run package-ext",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc -p ./ --noEmit",
     "lint": "eslint src --ext ts",
-    "package": "npx @vscode/vsce package"
+    "package-ext": "node esbuild.js --production",
+    "package": "npm run package-ext && npx @vscode/vsce package"
   },
   "devDependencies": {
-    "@types/node": "^25.3.0",
+    "@types/node": "^25.3.2",
     "@types/vscode": "^1.109.0",
     "@vscode/vsce": "^3.7.1",
+    "esbuild": "^0.27.3",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "cheerio": "^1.2.0"
-}
+  }
 }
