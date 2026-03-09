@@ -161,7 +161,10 @@ npm run watch
 #Installer Extensions
 code --install-extension ./adr-sjekk-0.2.0.vsix
 
-#Hvis du mangler "code" i terminal  Ctrl/CMD + Shift + P -  søke etter - "Shell Command: Install 'code' command in PATH"
+# Hvis "code" syntaksen mangler i terminal:
+#          Ctrl/CMD + Shift + P
+#          søke etter:           "Shell Command: Install 'code' command in PATH"
+#
 #Eller trykk **F5** for å åpne Extension Development Host med extensionen lastet.
 ```
 
