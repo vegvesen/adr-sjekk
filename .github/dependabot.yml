@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       typescript:
@@ -20,3 +22,5 @@ updates:
     schedule:
       interval: "monthly"
       day: "monday"
+    cooldown:
+      default-days: 7
